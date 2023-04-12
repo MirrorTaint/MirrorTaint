@@ -1,0 +1,1 @@
+java -javaagent:/agent/skywalking-agent.jar -Dskywalking.agent.service_name=febs-auth -Dskywalking.collector.backend_service=skywalkingIp:11800 -javaagent:/usr/local/lib/taint-agent-core-1.0.0.jar -Dtaint.env=remote -Dtaint.app=cc.mrbird.febs -jar /febs/febs-auth-2.2-RELEASE.jar

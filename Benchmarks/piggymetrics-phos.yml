@@ -1,0 +1,217 @@
+version: '2.1'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: always
+    ports:
+      - 15672:15672
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  config:
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-config
+    restart: always
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  registry:
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-registry
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    ports:
+      - 8761:8761
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  gateway:
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-gateway
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    ports:
+      - 80:4000
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  auth-service:
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+      NOTIFICATION_SERVICE_PASSWORD: $NOTIFICATION_SERVICE_PASSWORD
+      STATISTICS_SERVICE_PASSWORD: $STATISTICS_SERVICE_PASSWORD
+      ACCOUNT_SERVICE_PASSWORD: $ACCOUNT_SERVICE_PASSWORD
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+    image: sqshq/piggymetrics-auth-service
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  auth-mongodb:
+    environment:
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+    image: sqshq/piggymetrics-mongodb
+    restart: always
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  account-service:
+    volumes:
+      - ~/.m2/repository/com/mirror/taint/taint-agent-core/1.0.0/taint-agent-core-1.0.0.jar:/usr/local/lib/taint-agent-core-1.0.0.jar
+      - ~/.m2/repository/org/example/ToolAgent/1.0/ToolAgent-1.0.jar:/usr/local/lib/ToolAgent-1.0.jar
+      - ~/.m2/repository/edu/gmu/swe/phosphor/Phosphor/0.0.5-SNAPSHOT/Phosphor-0.0.5-SNAPSHOT.jar:/tmp/Phosphor.jar
+      - ~/Desktop/Test/SOA-Bench/:/phos/
+      - ~/Desktop/Test/SOA-Bench/entrypoint/entry-pig-account-service.sh:/tmp/entrypoint.sh
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+      - /tmp/caches:rw,noexec,nosuid
+      - /toolAgent:rw,noexec,nosuid
+    entrypoint: /tmp/entrypoint.sh
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+      ACCOUNT_SERVICE_PASSWORD: $ACCOUNT_SERVICE_PASSWORD
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+    image: sqshq/piggymetrics-account-service
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  account-mongodb:
+    environment:
+      INIT_DUMP: account-service-dump.js
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+    image: sqshq/piggymetrics-mongodb
+    restart: always
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  statistics-service:
+    volumes:
+      - ~/.m2/repository/com/mirror/taint/taint-agent-core/1.0.0/taint-agent-core-1.0.0.jar:/usr/local/lib/taint-agent-core-1.0.0.jar
+      - ~/.m2/repository/org/example/ToolAgent/1.0/ToolAgent-1.0.jar:/usr/local/lib/ToolAgent-1.0.jar
+      - ~/.m2/repository/edu/gmu/swe/phosphor/Phosphor/0.0.5-SNAPSHOT/Phosphor-0.0.5-SNAPSHOT.jar:/tmp/Phosphor.jar
+      - ~/Desktop/Test/SOA-Bench/:/phos/
+      - ~/Desktop/Test/SOA-Bench/entrypoint/entry-pig-statistics-service.sh:/tmp/entrypoint.sh
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+      - /tmp/caches:rw,noexec,nosuid
+      - /toolAgent:rw,noexec,nosuid
+    entrypoint: /tmp/entrypoint.sh
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+      STATISTICS_SERVICE_PASSWORD: $STATISTICS_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-statistics-service
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  statistics-mongodb:
+    environment:
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+    image: sqshq/piggymetrics-mongodb
+    restart: always
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  notification-service:
+    volumes:
+      - ~/.m2/repository/com/mirror/taint/taint-agent-core/1.0.0/taint-agent-core-1.0.0.jar:/usr/local/lib/taint-agent-core-1.0.0.jar
+      - ~/.m2/repository/org/example/ToolAgent/1.0/ToolAgent-1.0.jar:/usr/local/lib/ToolAgent-1.0.jar
+      - ~/.m2/repository/edu/gmu/swe/phosphor/Phosphor/0.0.5-SNAPSHOT/Phosphor-0.0.5-SNAPSHOT.jar:/tmp/Phosphor.jar
+      - ~/Desktop/Test/SOA-Bench/:/phos/
+      - ~/Desktop/Test/SOA-Bench/entrypoint/entry-pig-notification-service.sh:/tmp/entrypoint.sh
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+      - /tmp/caches:rw,noexec,nosuid
+      - /toolAgent:rw,noexec,nosuid
+    entrypoint: /tmp/entrypoint.sh
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+      NOTIFICATION_SERVICE_PASSWORD: $NOTIFICATION_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-notification-service
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  notification-mongodb:
+    image: sqshq/piggymetrics-mongodb
+    restart: always
+    environment:
+      MONGODB_PASSWORD: $MONGODB_PASSWORD
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  monitoring:
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-monitoring
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    ports:
+      - 9000:8080
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  turbine-stream-service:
+    environment:
+      CONFIG_SERVICE_PASSWORD: $CONFIG_SERVICE_PASSWORD
+    image: sqshq/piggymetrics-turbine-stream-service
+    restart: always
+    depends_on:
+      config:
+        condition: service_healthy
+    ports:
+    - 8989:8989
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "10"

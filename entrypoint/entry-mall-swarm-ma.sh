@@ -1,0 +1,1 @@
+java -javaagent:/usr/local/lib/taint-agent-core-1.0.0.jar -Dtaint.app=com.macro.mall -Dtaint.env=remote -jar -Dspring.profiles.active=prod /mall-admin-1.0-SNAPSHOT.jar

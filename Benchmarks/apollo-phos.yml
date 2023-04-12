@@ -1,0 +1,61 @@
+#
+# Copyright 2021 Apollo Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+version: '2'
+
+services:
+  apollo-quick-start:
+    volumes:
+      - ~/.m2/repository/com/mirror/taint/taint-agent-core/1.0.0/taint-agent-core-1.0.0.jar:/usr/local/lib/taint-agent-core-1.0.0.jar
+      - ~/.m2/repository/org/example/ToolAgent/1.0/ToolAgent-1.0.jar:/usr/local/lib/ToolAgent-1.0.jar
+      - ~/.m2/repository/edu/gmu/swe/phosphor/Phosphor/0.0.5-SNAPSHOT/Phosphor-0.0.5-SNAPSHOT.jar:/tmp/Phosphor.jar
+      - ~/Desktop/Test/SOA-Bench/:/phos/
+      - ~/Desktop/Test/SOA-Bench/entrypoint/entry-apollo.sh:/apollo-quick-start/entrypoint.sh
+    entrypoint: /apollo-quick-start/entrypoint.sh
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+      - /tmp/caches:rw,noexec,nosuid
+      - /toolAgent:rw,noexec,nosuid
+    image: nobodyiam/apollo-quick-start
+    container_name: apollo-quick-start
+    depends_on:
+      - apollo-db
+    ports:
+      - "8080:8080"
+      - "8090:8090"
+      - "8070:8070"
+    links:
+      - apollo-db
+
+  apollo-db:
+    image: mysql:5.7
+    container_name: apollo-db
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+    depends_on:
+      - apollo-dbdata
+    ports:
+      - "13306:3306"
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+    volumes_from:
+      - apollo-dbdata
+
+  apollo-dbdata:
+    image: alpine:latest
+    container_name: apollo-dbdata
+    volumes:
+      - /var/lib/mysql

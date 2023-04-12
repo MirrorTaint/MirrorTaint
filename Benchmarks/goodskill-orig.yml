@@ -1,0 +1,333 @@
+version: "3"
+
+services:
+  rabbitmq-management:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - somenetwork
+
+  nacos:
+    container_name: nacos
+    environment:
+      - PREFER_HOST_MODE=hostname
+      - MODE=standalone
+    volumes:
+      - ./doc/docker/nacos/standalone-logs/:/home/nacos/logs
+      - ./doc/docker/nacos/init.d/custom.properties:/home/nacos/init.d/custom.properties
+      - ./doc/docker/nacos/logs/:/home/nacos/logs
+      - ./doc/docker/nacos/conf/application.properties:/home/nacos/conf/application.properties
+    ports:
+      - "8848:8848"
+    restart: always
+    build:
+      context: ./doc/docker/nacos
+    networks:
+      - somenetwork
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    volumes:
+      - ./doc/docker/nacos/prometheus/prometheus-standalone.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - nacos
+    restart: on-failure
+    networks:
+      - somenetwork
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    ports:
+      - 3000:3000
+    restart: on-failure
+    networks:
+      - somenetwork
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    volumes:
+      - ./doc/docker/nginx/templates:/etc/nginx/templates
+    ports:
+      - "80:80"
+    environment:
+      - NGINX_HOST=foobar.com
+      - NGINX_PORT=80
+
+  zookeeper:
+    image: zookeeper:3.6.2
+    container_name: zookeeper
+    restart: always
+    ports:
+      - "2181:2181"
+    networks:
+      - somenetwork
+
+  kafka:
+    image: bitnami/kafka:3.1.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "1099:1099"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: "kafka"
+      KAFKA_ADVERTISED_PORT: "9092"
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      #自动创建topic,goodskill-kafka:12:1表示创建“goodskill-kafka”topic,12个分区,1个副本
+      KAFKA_CREATE_TOPICS: "goodskill-kafka:12:1"
+      JMX_PORT: "1099"
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka -Dcom.sun.management.jmxremote.rmi.port=1099"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_BROKER_ID: "1"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://127.0.0.1:9092"
+    depends_on:
+      - zookeeper
+    restart: always
+    networks:
+      - somenetwork
+
+  kafka-manager:
+    image: kafkamanager/kafka-manager:latest
+    container_name: kafkamanager
+    restart: always
+    ports:
+      - "9001:9000"
+    environment:
+      - ZK_HOSTS=zookeeper:2181
+    depends_on:
+      - zookeeper
+      - kafka
+    networks:
+      - somenetwork
+
+  redis:
+    image: redis
+    container_name: redis
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "6379:6379"
+    networks:
+      - somenetwork
+    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "123456" ]
+
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name: redisinsight
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "8001:8001"
+    networks:
+      - somenetwork
+
+  elasticsearch:
+    image: elasticsearch:7.16.2
+    container_name: elasticsearch
+    environment:
+      - "cluster.name=elasticsearch" #设置集群名称为elasticsearch
+      - "discovery.type=single-node" #以单一节点模式启动
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" #设置使用jvm内存大小
+    volumes:
+      - ./doc/docker/elasticsearch/plugins:/usr/share/elasticsearch/plugins #插件文件挂载
+#      - ./doc/docker/elasticsearch/data:/usr/share/elasticsearch/data #数据文件挂载
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - somenetwork
+
+  kibana:
+    image: kibana:7.16.2
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      - "elasticsearch.hosts=https://elasticsearch:9200" #设置访问elasticsearch的地址
+    ports:
+      - "5601:5601"
+    networks:
+      - somenetwork
+
+  logstash:
+    image: logstash:7.16.2
+    container_name: logstash
+    volumes:
+      - ./doc/docker/logstash/logstash-springboot.conf:/usr/share/logstash/pipeline/logstash.conf #挂载logstash的配置文件
+    depends_on:
+      - elasticsearch
+    ports:
+      - "4560:4560"
+    networks:
+      - somenetwork
+
+  mysql:
+    image: mysql:8.0.29
+    container_name: mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+      --lower-case-table-names=1
+    volumes:
+      - ./goodskill-web/src/main/sql:/docker-entrypoint-initdb.d/
+    environment:
+      MYSQL_ROOT_PASSWORD: "Password123"
+      MYSQL_DATABASE: "seckill"
+      MYSQL_USER: "seckill"
+      MYSQL_PASSWORD: "Password123"
+    networks:
+      - somenetwork
+
+  mongo:
+    image: mongo:4.6.0
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    networks:
+      - somenetwork
+#    environment:
+#      MONGO_INITDB_ROOT_USERNAME: root
+#      MONGO_INITDB_ROOT_PASSWORD: root
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    restart: always
+    ports:
+      - "9411:9411"
+    networks:
+      - somenetwork
+
+  seata-server:
+    image: seataio/seata-server:1.4.2
+    container_name: seata-server
+    hostname: seata-server
+    ports:
+      - "8091:8091"
+    environment:
+      # 注册到nacos上的ip。客户端将通过该ip访问seata服务。
+      # 注意公网ip和内网ip的差异。
+      - SEATA_IP=192.168.2.134
+      - SEATA_PORT=8091
+      - STORE_MODE=file
+      - SEATA_CONFIG_NAME=file:/root/seata-config/registry.conf
+    volumes:
+      - ./doc/docker/seata/config:/root/seata-config
+    networks:
+      - somenetwork
+
+  goodses:
+    build: ./goodskill-es-provider
+    container_name: goodses
+    volumes:
+      - /logs/goods-es/:/logs/goodskill
+    depends_on:
+      - elasticsearch
+      - nacos
+      - zipkin
+#      - elasticsearch1
+    networks:
+      - somenetwork
+
+  goodsmongo:
+    build: ./goodskill-mongo-provider
+    container_name: goodsmongo
+    volumes:
+      - /logs/goods-mongo/:/logs/goodskill
+    depends_on:
+      - nacos
+      - mongo
+      - zipkin
+    networks:
+      - somenetwork
+
+  goodsservice:
+    build: ./goodskill-spring-boot-provider
+    container_name: goodsservice
+    restart: on-failure:3
+    volumes:
+      - /logs/goods-service/:/logs/goodskill
+    depends_on:
+      - elasticsearch
+      - zookeeper
+      - goodsmongo
+      - goodses
+      - redis
+      - nacos
+      - zipkin
+#      - seata-server
+    networks:
+      - somenetwork
+
+  goodsweb:
+    build: ./goodskill-web
+    container_name: goodsweb
+    restart: on-failure:5
+    volumes:
+      - /logs/goods-web/:/logs/goodskill
+    depends_on:
+      - goodsservice
+      - zookeeper
+      - redis
+      - nacos
+      - zipkin
+    networks:
+      - somenetwork
+
+  goodsgateway:
+    build: ./goodskill-gateway
+    container_name: goodsgateway
+    restart: on-failure:3
+    volumes:
+      - /logs/goods-gateway/:/logs/goodskill
+    ports:
+      - "80:80"
+    depends_on:
+      - nacos
+      - zipkin
+    networks:
+      - somenetwork
+
+#  goodsseata:
+#    build: ./goodskill-seata
+#    container_name: goodsseata
+#    restart: on-failure:3
+#    volumes:
+#      - /logs/goods-seata/:/logs/goodskill
+#    depends_on:
+#      - seata-server
+#      - goodsservice
+#    networks:
+#      - somenetwork
+
+  goodsadmin:
+    build: ./goodskill-admin
+    container_name: goodsadmin
+    ports:
+      - "8083:8083"
+    volumes:
+      - /logs/goods-admin/:/logs/goodskill
+    depends_on:
+      - nacos
+      - zipkin
+    networks:
+      - somenetwork
+
+networks:
+  somenetwork:
+    driver: bridge
